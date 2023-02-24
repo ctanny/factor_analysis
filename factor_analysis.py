@@ -1,6 +1,8 @@
 '''
 factor_analysis.py
 Python script to perform style and factor analysis on US mutual funds.
+Note that this script retrieves information from EOD Historical Data.
+All users must adapt the code to his/her own data provider.
 Created by Cordell L. Tanny, CFA, FRM, FDP
 February 2023
 '''
@@ -17,12 +19,10 @@ from sklearn.linear_model import LassoLarsIC
 from sklearn.pipeline import make_pipeline
 from dateutil.relativedelta import relativedelta
 import warnings
-import yfinance as yf
 import ssl
 import json
 from urllib.request import urlopen
 import os
-
 
 # prevent FutureWarnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
@@ -161,7 +161,6 @@ def retrieve_factor_returns(factors: dict, start_date: str, end_date: str, frequ
 
             # create a compound growth index
 
-
         case 'M':
             df_returns = df_prices.resample('M').last().pct_change().dropna()
 
@@ -180,9 +179,8 @@ def regression_vif(X):
     # Calculating VIF
     X = add_constant(X)
     vif = pd.DataFrame()
-    vif["variables"] = X.columns
-    vif["VIF"] = [variance_inflation_factor(X.values, i)\
-                  for i in range(X.shape[1])]
+    vif['variables'] = X.columns
+    vif['VIF'] = [variance_inflation_factor(X.values, i) for i in range(X.shape[1])]
 
     return vif
 
@@ -214,7 +212,29 @@ def linear_reg(y, x, add_const=False):
     return lm
 
 
-def lasso_lars_regression(tickers, factors):
+def multiple_lin_reg(returns, factor_returns, add_const=False):
+    """
+    Function to compute regular OLS regression on a group of supplied returns
+    :param tickers:
+    :param factors:
+    :param add_const:
+    :return:
+    """
+
+    df_results = pd.DataFrame()
+
+    for ticker in returns:
+        lin_reg = linear_reg(returns[ticker], factor_returns, True)
+        df_results = pd.concat([df_results, lin_reg.params], axis=1)
+
+    # drop the constant, rename columns and index
+    df_results.drop('const', axis=0, inplace=True)
+    df_results.index = df_factors.columns
+    df_results.columns = returns.columns
+
+    return df_results
+
+def lasso_lars_regression(returns, factor_returns):
     """
     Function to calculate the regression coefficient based on LASSO
     :param tickers:
@@ -225,9 +245,9 @@ def lasso_lars_regression(tickers, factors):
     # initialize an empty dataframe to store the results
     df_results = pd.DataFrame()
 
-    for ticker in tickers:
-        y = tickers[ticker]
-        X = factors.copy()
+    for ticker in returns:
+        y = returns[ticker]
+        X = factor_returns.copy()
 
         # run the lasso regression
         lasso_lars_ic = make_pipeline(
@@ -243,10 +263,12 @@ def lasso_lars_regression(tickers, factors):
         # print(best_alpha_lasso.coef_)
 
         # create a df with the results
-        df_temp = pd.DataFrame(data=best_alpha_lasso.coef_, index=factors.columns,
+        df_temp = pd.DataFrame(data=best_alpha_lasso.coef_, index=factor_returns.columns,
                                columns=[ticker])
 
         df_results = pd.concat([df_results, df_temp], axis=1)
+
+        print('Lasso regression completed')
 
     return df_results
 
@@ -261,7 +283,6 @@ df_factors = retrieve_factor_returns(factors_dict, start_date, end_date)
 # truncate the fund returns df to match the available factor data
 df_funds = df_funds.loc[df_factors.index[0]:]
 
-
 # test the VIF
 regression_vif(df_factors)
 
@@ -269,8 +290,7 @@ regression_vif(df_factors)
 lin_reg = linear_reg(df_funds.iloc[:, 0], df_factors, True)
 lin_reg.summary()
 
+simple_lr_results = multiple_lin_reg(df_funds, df_factors, True)
+
 # run the regression
 results = lasso_lars_regression(df_funds, df_factors)
-
-
-
