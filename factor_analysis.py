@@ -4,6 +4,7 @@ Python script to perform style and factor analysis on US mutual funds.
 Created by Cordell L. Tanny, CFA, FRM, FDP
 February 2023
 '''
+import os
 
 import pandas as pd
 import numpy as np
@@ -17,13 +18,23 @@ from sklearn.pipeline import make_pipeline
 from dateutil.relativedelta import relativedelta
 import warnings
 import yfinance as yf
+import ssl
+import json
+from urllib.request import urlopen
+import os
+
 
 # prevent FutureWarnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
+# context for certificates needed in urllib/requests
+ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
+
 # %% initialization
 start_date = '2012-01-01'
 end_date = '2023-01-31'
+
+eod_api_key = os.environ['EOD_API_KEY']
 
 tickers = [
     'QIACX',
@@ -39,18 +50,18 @@ factors_dict = {
     'US Dividend': 'SCHD',
     'US Quality': 'QUAL',
     'US Defensive': 'DEF',
-    # 'US Small Cap': 'VB',
-    # 'US Mid Cap': 'VO',
+    'US Small Cap': 'VB',
+    'US Mid Cap': 'VO',
     'US Large Cap': 'VV',
     # 'US Credit': 'LQD',
     # 'US High Yield': 'JNK',
     # 'US Government': 'GOVT',
-    # 'Intl Growth': 'EFG',
-    # 'Intl Value': 'EFV',
-    # 'Intl Momentum': 'IMTM',
-    # 'Intl Dividend': 'IDV',
-    # 'Intl Quality': 'IQLT',
-    # 'Intl Small-Cap': 'GWX',
+    'Intl Growth': 'EFG',
+    'Intl Value': 'EFV',
+    'Intl Momentum': 'IMTM',
+    'Intl Dividend': 'IDV',
+    'Intl Quality': 'IQLT',
+    'Intl Small-Cap': 'GWX',
     # 'Intl Credit': 'IBND',
     # 'Intl High Yield': 'IHY',
     # 'Intl Government': 'IGOV',
@@ -58,6 +69,28 @@ factors_dict = {
 
 
 # %% functions
+def get_stock_prices(symbol, start_date, end_date):
+    """
+    Receive the content of ``url``, parse it as JSON and return the object.
+    """
+
+    if '.TO' not in symbol:
+        ticker = symbol + '.US'
+    else:
+        ticker = symbol
+
+    url = f'https://eodhistoricaldata.com/api/eod/{ticker}?from={start_date}&to={end_date}&' \
+          f'period=d&api_token={eod_api_key}&fmt=json'
+
+    response = urlopen(url, context=ssl_context)
+    data = response.read().decode("utf-8")
+
+    prices = json.loads(data)
+
+    prices = pd.DataFrame(prices).set_index('date').sort_index()
+
+    return prices
+
 
 def get_returns(tickers: list, start_date, end_date, frequency='M'):
     """
@@ -69,10 +102,16 @@ def get_returns(tickers: list, start_date, end_date, frequency='M'):
     :return: pd.DataFrame
     """
 
-    df_prices = yf.download(tickers, start_date, end_date)[['Adj Close']]
+    df_prices = pd.DataFrame()
 
-    # convert the index to datetime
-    df_prices.index = pd.to_datetime(df_prices.index)
+    for ticker in tickers:
+        df_temp = get_stock_prices(ticker, start_date, end_date)[['adjusted_close']]
+
+        # convert the index to datetime
+        df_temp.index = pd.to_datetime(df_temp.index)
+
+        # add the prices to df_prices
+        df_prices = pd.concat([df_prices, df_temp], axis=1)
 
     # calculate the percent change based on the desired frequency
     match frequency:
@@ -104,10 +143,16 @@ def retrieve_factor_returns(factors: dict, start_date: str, end_date: str, frequ
     :return:
     """
 
-    df_prices = yf.download(list(factors.values()), start_date, end_date)[['Adj Close']]
+    df_prices = pd.DataFrame()
 
-    # convert the index to datetime
-    df_prices.index = pd.to_datetime(df_prices.index)
+    for factor in list(factors.values()):
+        df_temp = get_stock_prices(factor, start_date, end_date)[['adjusted_close']]
+
+        # convert the index to datetime
+        df_temp.index = pd.to_datetime(df_temp.index)
+
+        # add the prices to df_prices
+        df_prices = pd.concat([df_prices, df_temp], axis=1)
 
     # calculate the percent change based on the desired frequency
     match frequency:
@@ -168,6 +213,8 @@ def lasso_lars_regression(tickers, factors):
 
 
 # %% execute
+
+# test = get_stock_prices(tickers[2], start_date, end_date)
 
 df_funds = get_returns(tickers, start_date, end_date)
 df_factors = retrieve_factor_returns(factors_dict, start_date, end_date)
