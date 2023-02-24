@@ -175,6 +175,45 @@ def retrieve_factor_returns(factors: dict, start_date: str, end_date: str, frequ
     return df_returns
 
 
+def regression_vif(X):
+    # values above 5 indicate high correlation between factors
+    # Calculating VIF
+    X = add_constant(X)
+    vif = pd.DataFrame()
+    vif["variables"] = X.columns
+    vif["VIF"] = [variance_inflation_factor(X.values, i)\
+                  for i in range(X.shape[1])]
+
+    return vif
+
+
+def linear_reg(y, x, add_const=False):
+    '''
+    Calculates simple and multiple regression model using statsmodels.
+    adds constant to dependent variables automatically.
+
+    Parameters
+    ----------
+    y : DataFrame
+        dependent variable
+    x : DataFrame
+        independent variables
+
+    Returns
+    -------
+    statsmodels regression object
+
+    '''
+    if add_const:
+        x = x.copy()
+
+    x = add_constant(x.values)
+
+    lm = OLS(y, x).fit()
+
+    return lm
+
+
 def lasso_lars_regression(tickers, factors):
     """
     Function to calculate the regression coefficient based on LASSO
@@ -201,7 +240,7 @@ def lasso_lars_regression(tickers, factors):
         # rerun with that alpha
         best_alpha_lasso = LassoLars(alpha=alpha_aic, normalize=True)
         best_alpha_lasso.fit(X, y)
-        best_alpha_lasso.coef_
+        # print(best_alpha_lasso.coef_)
 
         # create a df with the results
         df_temp = pd.DataFrame(data=best_alpha_lasso.coef_, index=factors.columns,
@@ -221,6 +260,14 @@ df_factors = retrieve_factor_returns(factors_dict, start_date, end_date)
 
 # truncate the fund returns df to match the available factor data
 df_funds = df_funds.loc[df_factors.index[0]:]
+
+
+# test the VIF
+regression_vif(df_factors)
+
+# test a non-regularized regression
+lin_reg = linear_reg(df_funds.iloc[:, 0], df_factors, True)
+lin_reg.summary()
 
 # run the regression
 results = lasso_lars_regression(df_funds, df_factors)
