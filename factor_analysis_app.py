@@ -124,12 +124,8 @@ def get_returns(tickers: list, start_date, end_date, frequency='M'):
         case 'D':
             df_returns = df_prices.pct_change().dropna()
 
-            # create a compound growth index
-
         case 'M':
             df_returns = df_prices.resample('M').last().pct_change().dropna()
-
-            # create a compound growth index
 
     # rename the columns
     df_returns.columns = tickers
@@ -277,12 +273,87 @@ def lasso_lars_regression(returns, factor_returns):
     return df_results
 
 
+def feature_barplot(regression_results):
+    """
+    plotly barplot of selected factors for a supplied list of funds
+    :param fund_list: list of funds to graph provided by a multi-select box
+    :param fund_list: DataFrame of scaled feature data as time series
+    :param feature: feature to graph to compare the distribution over time
+    :return: seaborn stacked bar plot
+    """
+
+    # ignore user warning when too many markers at same size
+    warnings.simplefilter(action='ignore', category=UserWarning)
+
+    # plot the df
+    fig = px.bar(
+        regression_results.T,
+        x=regression_results.index,
+        y=regression_results.columns,
+        orientation='h',
+        color_discrete_sequence=px.colors.qualitative.Alphabet
+    )
+
+    fig.layout.plot_bgcolor = '#0E1117'
+    fig.update_xaxes(showgrid=False)
+    fig.update_yaxes(showgrid=False)
+    fig.update_xaxes(title_text='Factor Exposure')
+    fig.update_yaxes(title_text='Fund')
+    fig.add_vline(x=0, line_color='red', line_width=3)
+
+    return fig
+
+
 # %% Streamlit code
 
 st.header('Style and Factor Analysis Modeling')
 
 # component 1: Add multi-select box to chose investment options
-st.multiselect(
+funds = st.multiselect(
     label='Select Investments:',
     options=tickers,
+    key='select_investments'
 )
+
+factors = st.multiselect(
+    label='Select Factors:',
+    options=list(factors_dict.keys()),
+    default=list(factors_dict.keys()),
+    key='select_factors'
+)
+
+init_btn = st.button(
+    label='Run Analysis',
+    key='init_btn'
+)
+
+if init_btn:
+    with st.spinner('Calculating...'):
+        # retrieve returns
+        df_funds = get_returns(tickers, start_date, end_date)
+        df_factors = retrieve_factor_returns(factors_dict, start_date, end_date)
+
+        # truncate the fund returns df to match the available factor data
+        df_funds = df_funds.loc[df_factors.index[0]:]
+
+        # test the VIF
+        # regression_vif(df_factors)
+        #
+        # # test a non-regularized regression
+        # lin_reg = linear_reg(df_funds.iloc[:, 3], df_factors, True)
+        # lin_reg.summary()
+        #
+        # simple_lr_results = multiple_lin_reg(df_funds, df_factors, True)
+
+        # run the regression
+        results = lasso_lars_regression(df_funds, df_factors)
+
+        # drop all rows with zeros
+        results_filtered = results.loc[~(results == 0).all(axis=1)]
+
+    cont_1 = st.container()
+    with cont_1:
+        st.markdown('#### Factor Exposure Bar Chart')
+        # graph the factor exposure bar chart
+        fig = feature_barplot(results_filtered)
+        st.plotly_chart(fig, use_container_width=True, config=config)
