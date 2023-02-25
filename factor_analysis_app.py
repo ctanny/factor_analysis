@@ -1,12 +1,13 @@
 '''
-factor_analysis.py
-Python script to perform style and factor analysis on US mutual funds.
+factor_analysis_app.py
+Python script to perform style and factor analysis on US mutual funds, and display as a streamlit web app.
 Note that this script retrieves information from EOD Historical Data.
 All users must adapt the code to his/her own data provider.
 Created by Cordell L. Tanny, CFA, FRM, FDP
 February 2023
 '''
 
+import streamlit as st
 import os
 import pandas as pd
 import numpy as np
@@ -23,12 +24,18 @@ import ssl
 import json
 from urllib.request import urlopen
 import os
+import plotly.express as px
+import plotly.graph_objects as go
 
 # prevent FutureWarnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 # context for certificates needed in urllib/requests
 ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
+
+
+# remove plotly menu bar
+config = {'displayModeBar': False}
 
 # %% initialization
 start_date = '2012-01-01'
@@ -66,7 +73,6 @@ factors_dict = {
     # 'Intl High Yield': 'IHY',
     # 'Intl Government': 'IGOV',
 }
-
 
 # %% functions
 def get_stock_prices(symbol, start_date, end_date):
@@ -271,24 +277,12 @@ def lasso_lars_regression(returns, factor_returns):
     return df_results
 
 
-# %% execute
+# %% Streamlit code
 
-# test = get_stock_prices(tickers[2], start_date, end_date)
+st.header('Style and Factor Analysis Modeling')
 
-df_funds = get_returns(tickers, start_date, end_date)
-df_factors = retrieve_factor_returns(factors_dict, start_date, end_date)
-
-# truncate the fund returns df to match the available factor data
-df_funds = df_funds.loc[df_factors.index[0]:]
-
-# test the VIF
-regression_vif(df_factors)
-
-# test a non-regularized regression
-lin_reg = linear_reg(df_funds.iloc[:, 3], df_factors, True)
-lin_reg.summary()
-
-simple_lr_results = multiple_lin_reg(df_funds, df_factors, True)
-
-# run the regression
-results = lasso_lars_regression(df_funds, df_factors)
+# component 1: Add multi-select box to chose investment options
+st.multiselect(
+    label='Select Investments:',
+    options=tickers,
+)
