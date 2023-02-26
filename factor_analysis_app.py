@@ -47,7 +47,7 @@ tickers = [
     'QIACX',
     'VTSAX',
     'FCNTX',
-    'TRLGX',
+    'TRBCX',
 ]
 
 factors_dict = {
