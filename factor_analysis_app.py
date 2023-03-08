@@ -7,25 +7,21 @@ Created by Cordell L. Tanny, CFA, FRM, FDP
 February 2023
 '''
 
-import streamlit as st
+import json
 import os
+import ssl
+import warnings
+from urllib.request import urlopen
 import pandas as pd
-import numpy as np
-from statsmodels.stats.outliers_influence import variance_inflation_factor
-from statsmodels.tools.tools import add_constant
-from statsmodels.regression.linear_model import OLS
-from sklearn.linear_model import Lasso, LinearRegression, Ridge, ElasticNet, LassoLars
-from sklearn.preprocessing import StandardScaler
+import plotly.express as px
+import streamlit as st
+from sklearn.linear_model import LassoLars
 from sklearn.linear_model import LassoLarsIC
 from sklearn.pipeline import make_pipeline
-from dateutil.relativedelta import relativedelta
-import warnings
-import ssl
-import json
-from urllib.request import urlopen
-import os
-import plotly.express as px
-import plotly.graph_objects as go
+from sklearn.preprocessing import StandardScaler
+from statsmodels.regression.linear_model import OLS
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+from statsmodels.tools.tools import add_constant
 
 # prevent FutureWarnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
