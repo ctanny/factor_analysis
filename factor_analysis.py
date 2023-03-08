@@ -7,22 +7,19 @@ Created by Cordell L. Tanny, CFA, FRM, FDP
 February 2023
 '''
 
+import json
 import os
+import ssl
+import warnings
+from urllib.request import urlopen
 import pandas as pd
-import numpy as np
-from statsmodels.stats.outliers_influence import variance_inflation_factor
-from statsmodels.tools.tools import add_constant
-from statsmodels.regression.linear_model import OLS
-from sklearn.linear_model import Lasso, LinearRegression, Ridge, ElasticNet, LassoLars
-from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LassoLars
 from sklearn.linear_model import LassoLarsIC
 from sklearn.pipeline import make_pipeline
-from dateutil.relativedelta import relativedelta
-import warnings
-import ssl
-import json
-from urllib.request import urlopen
-import os
+from sklearn.preprocessing import StandardScaler
+from statsmodels.regression.linear_model import OLS
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+from statsmodels.tools.tools import add_constant
 
 # prevent FutureWarnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
@@ -32,7 +29,7 @@ ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
 
 # %% initialization
 start_date = '2012-01-01'
-end_date = '2023-01-31'
+end_date = '2023-02-28'
 
 eod_api_key = os.environ['EOD_API_KEY']
 
@@ -94,7 +91,7 @@ def get_stock_prices(symbol, start_date, end_date):
 
 def get_returns(tickers: list, start_date, end_date, frequency='M'):
     """
-    Function to retrieve daily prices from yahoo finance
+    Function to calculate returns based on the supplied prices and frequency.
     :param tickers: list[strings]. Yahoo finance tickers supplied as a list.
     :param start_date: string.
     :param end_date: string.
@@ -252,7 +249,7 @@ def lasso_lars_regression(returns, factor_returns):
             StandardScaler(), LassoLarsIC(criterion="aic", normalize=False)
         ).fit(X, y)
 
-        # select the alpha
+        # select the alpha using a grid search over multiple alpha values
         alpha_aic = lasso_lars_ic[-1].alpha_
 
         # rerun with that alpha
@@ -292,3 +289,4 @@ simple_lr_results = multiple_lin_reg(df_funds, df_factors, True)
 
 # run the regression
 results = lasso_lars_regression(df_funds, df_factors)
+
